@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -16,10 +17,10 @@ import (
 var NegativeJobCountError = errors.New("job count should be positive")
 
 type DirSearcher struct {
-	Dir string
+	Dir      string
 	JobCount int
 	fileList []string
-	sem chan struct{}
+	sem      chan struct{}
 }
 
 func (ds *DirSearcher) Init() error {
@@ -36,7 +37,6 @@ func (ds *DirSearcher) Init() error {
 }
 
 func (ds *DirSearcher) search(r io.Reader, q string) (res []Match) {
-
 	scan := bufio.NewScanner(r)
 	ln := 1
 	for scan.Scan() {
@@ -51,7 +51,23 @@ func (ds *DirSearcher) search(r io.Reader, q string) (res []Match) {
 		ln++
 	}
 	return res
+}
 
+func (ds *DirSearcher) searchRE(r io.Reader, re *regexp.Regexp) (res []Match) {
+	scan := bufio.NewScanner(r)
+	ln := 1
+	for scan.Scan() {
+		line := scan.Text()
+		if re.Match([]byte(line)) {
+			res = append(res, Match{
+				Line:         line,
+				LineNum:      ln,
+				DocumentName: "",
+			})
+		}
+		ln++
+	}
+	return res
 }
 
 func (ds *DirSearcher) scanDir() ([]string, error) {
@@ -101,4 +117,17 @@ Loop:
 	}
 	wg.Wait()
 	return res
+}
+
+func (ds *DirSearcher) GetDocument(ctx context.Context, id string) (string, error) {
+	// Передать название любого файла и прочитать ваш файлы.
+	r, err := os.Open(path.Join(ds.Dir, id))
+	if err != nil {
+		return "", err
+	}
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

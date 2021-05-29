@@ -2,6 +2,11 @@ package searcher
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -10,14 +15,14 @@ import (
 
 func TestDirSearcher_searchm(t *testing.T) {
 	tc := []struct {
-		name string
+		name  string
 		input string
 		query string
-		res []Match
-	} {
+		res   []Match
+	}{
 		{
-			name: "Simple test",
-			input:"Hello\nWorld\nKek\nWorld",
+			name:  "Simple test",
+			input: "Hello\nWorld\nKek\nWorld",
 			query: "Kek",
 			res: []Match{{
 				Line:         "Kek",
@@ -26,8 +31,8 @@ func TestDirSearcher_searchm(t *testing.T) {
 			}},
 		},
 		{
-			name: "All match test",
-			input:"Hello\nHello\n",
+			name:  "All match test",
+			input: "Hello\nHello\n",
 			query: "Hello",
 			res: []Match{
 				{
@@ -43,14 +48,14 @@ func TestDirSearcher_searchm(t *testing.T) {
 			},
 		},
 		{
-			name: "Empty test",
-			input:"",
+			name:  "Empty test",
+			input: "",
 			query: "query",
-			res: nil,
+			res:   nil,
 		},
 		{
-			name: "Lowercase test",
-			input:"heLlO WorLd\n",
+			name:  "Lowercase test",
+			input: "heLlO WorLd\n",
 			query: "hello world",
 			res: []Match{{
 				Line:         "heLlO WorLd",
@@ -58,8 +63,6 @@ func TestDirSearcher_searchm(t *testing.T) {
 				DocumentName: "",
 			}},
 		},
-
-
 	}
 	for _, c := range tc {
 		ds := DirSearcher{}
@@ -95,8 +98,73 @@ func TestDirSearcher_Search(t *testing.T) {
 		t.Errorf("Search() result mismatch (-want +got):\n%s", diff)
 	}
 
-
 }
+
+func BenchmarkDirSearcher_search(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		ds := DirSearcher{}
+		r := strings.NewReader("Hello\nWorld\nLol\nKek\nCheburek\n")
+		res := ds.search(r, "lol")
+		if len(res) < 1 {
+			b.Fatalf("Wrong search result.")
+		}
+	}
+}
+
+func BenchmarkDirSearcher_searchRE(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		ds := DirSearcher{}
+		r := strings.NewReader("Hello\nWorld\nlol\nKek\nCheburek\n")
+
+		reg, err := regexp.Compile("lol")
+		if err != nil {
+			b.Fatalf("Failed to compile regexp: %v", err)
+		}
+		res := ds.searchRE(r, reg)
+		if len(res) < 1 {
+			b.Fatalf("Wrong search result.")
+		}
+	}
+}
+
+func BenchmarkDirSearcher_Search(b *testing.B) {
+	name, err := ioutil.TempDir("", "testdata")
+	if err != nil {
+		b.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(name)
+	match := "kek"
+	numFiles := 2000
+	numLines := 500
+	for i := 0; i < numFiles; i++ {
+		f, err := os.Create(path.Join(name, fmt.Sprintf("%d.txt", i)))
+		if err != nil {
+			b.Fatalf("Failed to create file %s = %v", fmt.Sprintf("%d.txt", i), err)
+		}
+		for j := 0; j < numLines; j++ {
+			f.WriteString("!\n")
+		}
+		f.WriteString(match)
+		if err := f.Close(); err != nil {
+			b.Fatalf("Failed to close file %v with error %v", f.Name(), err)
+		}
+	}
+
+	ds := DirSearcher{
+		Dir:      name,
+		JobCount: 4,
+	}
+	if err := ds.Init(); err != nil {
+		b.Fatalf("Failed to init searcher with error = %v", err)
+	}
+	for i := 0; i < b.N; i++ {
+		res := ds.Search(context.TODO(), match)
+		if len(res) < numFiles {
+			b.Fatalf("Wrong search result.")
+		}
+	}
+}
+
 //func Test_dirsearch_search(t *testing.T) {
 //
 //}

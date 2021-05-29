@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DIY Search engine</title>
+</head>
+<body>
+    <h3>Welcome to my search engine.</h3>
+    <form action="#" >
+        <label>
+            Your query:
+            <input type="text" id="query" name="query" placeholder="query">
+        </label>
+
+        <button type="button" onclick="doSearch()" name="submit">Search</button>
+
+        <div>
+            <div id="resp"></div>
+        </div>
+    </form>
+    <script>
+        function doSearch() {
+            let q = document.getElementById("query").value;
+            if (q == "") {
+                alert("Empty query");
+                return;
+            }
+            var xmlhttp = new XMLHttpRequest();
+            var url = "search?q=" + q;
+            xmlhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var searchRes = JSON.parse(this.responseText);
+                    // console.log(searchRes);
+                    renderSearchResult(searchRes);
+                }
+            };
+            xmlhttp.open("GET", url, true);
+            xmlhttp.send();
+        }
+
+        function renderSearchResult(searchResult) {
+            var out = "";
+            if (searchResult == null || searchResult.length === 0) {
+                out = "<h3>No search results.<h3>";
+            } else {
+                var i;
+                out += "<ol>\n";
+                for (i = 0 ; i < Math.min(searchResult.length, 20); i++) {
+                    let match = searchResult[i];
+                    out += `
+                       <li>
+                            <a href="doc/${match.documentName}">${match.documentName} (${match.lineNum})</a>  - ${match.line}
+                        </li>\n
+                        `;
+                }
+                out += "</ol>";
+            }
+            document.getElementById("resp").innerHTML = out;
+        }
+
+
+
+
+
+        // function myFunction(arr) {
+        //     var out = "";
+        //     var i;
+        //     for(i = 0; i < arr.length; i++) {
+        //         out += '<a href="' + arr[i].url + '">' +
+        //             arr[i].display + '</a><br>';
+        //     }
+        //     document.getElementById("id01").innerHTML = out;
+        // }
+    </script>
+</body>
+</html>
